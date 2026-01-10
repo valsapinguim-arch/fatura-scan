@@ -297,8 +297,8 @@ async function analyzeWithGemini(base64Image) {
     const loadText = ocrLoading.querySelector('p');
     loadText.innerText = "A inteligência artificial a analisar...";
 
-    // Simplified to single model to save Quota
-    const model = 'gemini-1.5-flash';
+    // Switching to 2.0 Flash as 1.5 seems unavailable for this key/region
+    const model = 'gemini-2.0-flash-exp';
 
     try {
         const base64Data = base64Image.split(',')[1];
