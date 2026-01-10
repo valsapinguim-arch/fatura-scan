@@ -378,11 +378,15 @@ async function submitForm(e) {
         // USE SELECTED SHEET NAME
         const range = `'${selectedSheetName}'!A:D`;
 
-        const values = [[new Date().toISOString(), date, amount, description]];
+        // Append 
+        // Order: Description, Amount, Date
+        const values = [
+            [description, amount, date]
+        ];
 
         const response = await gapi.client.sheets.spreadsheets.values.append({
             spreadsheetId: selectedSpreadsheetId,
-            range: range,
+            range: range, // Appends to cols A:C
             valueInputOption: 'USER_ENTERED',
             resource: { values: values }
         });
