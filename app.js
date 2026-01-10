@@ -301,7 +301,8 @@ async function analyzeWithGemini(base64Image) {
         // Strip header (data:image/jpeg;base64,)
         const base64Data = base64Image.split(',')[1];
 
-        const model = 'gemini-1.5-flash';
+        // Tentativa com versão específica pinned
+        const model = 'gemini-1.5-flash-001';
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${CONFIG.GEMINI_KEY}`;
 
         const prompt = `
