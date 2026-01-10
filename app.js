@@ -38,7 +38,7 @@ window.onload = () => {
     }
 
     // Attempt to load Google libs
-    if (typeof gapi !== 'undefined') gapi.load('client', intializeGapiClient);
+    if (typeof gapi !== 'undefined') gapi.load('client:picker', intializeGapiClient);
     if (typeof google !== 'undefined') intializeGisClient();
 
     // Check if we have a sheet saved
