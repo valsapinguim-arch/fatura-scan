@@ -10,11 +10,15 @@ const ocrLoading = document.getElementById('ocr-loading');
 const invoiceForm = document.getElementById('invoice-form');
 const submitBtn = document.getElementById('submit-btn');
 
-// --- GOOGLE CONFIGURATION ---
+// --- CONFIGURATION ---
 const CONFIG = {
+    // Google Drive/Sheets Keys
     API_KEY: 'AIzaSyD5yY3UDK7tHYExgW0JKs2UEx3Y5Yeum4o',
     CLIENT_ID: '1023385440722-8i7vd1vlvfa8bniddojojlgadtsnrtod.apps.googleusercontent.com',
     APP_ID: '1023385440722',
+
+    // Google Gemini AI Key
+    GEMINI_KEY: 'YOUR_GEMINI_API_KEY_HERE' // <--- SUBSTITUIR AQUI
 };
 
 // Scopes
@@ -27,7 +31,7 @@ let gisInited = false;
 
 // Saved State
 let selectedSpreadsheetId = localStorage.getItem('faturaScan_sheetId');
-let selectedSheetName = localStorage.getItem('faturaScan_sheetName') || 'Sheet1'; // Default
+let selectedSheetName = localStorage.getItem('faturaScan_sheetName') || 'Sheet1';
 
 let mediaStream = null;
 let currentFacingMode = 'environment';
@@ -39,7 +43,6 @@ window.onload = () => {
         navigator.serviceWorker.register('./sw.js').catch(console.error);
     }
 
-    // Attempt to load Google libs
     if (typeof gapi !== 'undefined') gapi.load('client:picker', intializeGapiClient);
     if (typeof google !== 'undefined') intializeGisClient();
 
@@ -74,7 +77,6 @@ function updateUIState() {
     const sheetLabel = document.getElementById('current-sheet-label');
     if (sheetLabel) {
         if (selectedSpreadsheetId) {
-            // Show file found and current tab
             sheetLabel.innerHTML = `
                 <div class="text-green-400 text-sm font-medium mb-1">Conectado ✅</div>
                 <div class="text-xs text-slate-400">Aba: <b>${selectedSheetName}</b></div>
@@ -110,7 +112,6 @@ function createAuthUI() {
     pickerBtn.innerHTML = `<i data-lucide="file-spreadsheet" class="w-5 h-5 inline mr-2 h-5 w-5"></i> Selecionar Planilha`;
     pickerBtn.onclick = createPicker;
 
-    // Tab Selector Dropdown (Hidden initially)
     const tabSelector = document.createElement('select');
     tabSelector.id = 'tab-selector';
     tabSelector.className = 'w-full p-3 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm hidden focus:ring-2 focus:ring-blue-500';
@@ -140,11 +141,7 @@ function checkToken() {
         btn.innerHTML = `<i data-lucide="log-out" class="w-5 h-5"></i><span>Sair da Conta</span>`;
         btn.onclick = handleSignout;
         pBtn.classList.remove('hidden');
-
-        // If we have a file selected, load its tabs
-        if (selectedSpreadsheetId) {
-            loadSheets(selectedSpreadsheetId);
-        }
+        if (selectedSpreadsheetId) loadSheets(selectedSpreadsheetId);
     }
 }
 
@@ -180,14 +177,11 @@ function handleSignout() {
     }
 }
 
-// --- Drive Picker ---
-
 function createPicker() {
     if (!gapi.client.getToken()) {
-        alert("Precisa de fazer login primeiro.");
+        alert("Login necessário.");
         return;
     }
-
     const view = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS)
         .setMimeTypes('application/vnd.google-apps.spreadsheet')
         .setSelectFolderEnabled(false);
@@ -207,24 +201,17 @@ function pickerCallback(data) {
         const fileId = data.docs[0].id;
         selectedSpreadsheetId = fileId;
         localStorage.setItem('faturaScan_sheetId', fileId);
-
-        // Load Tabs for this sheet
         loadSheets(fileId);
-
-        alert("Planilha selecionada! Carregando abas...");
+        alert("Planilha selecionada!");
     }
 }
 
 async function loadSheets(fileId) {
     try {
-        const response = await gapi.client.sheets.spreadsheets.get({
-            spreadsheetId: fileId
-        });
-
+        const response = await gapi.client.sheets.spreadsheets.get({ spreadsheetId: fileId });
         const sheets = response.result.sheets;
         const select = document.getElementById('tab-selector');
-        select.innerHTML = ''; // clear
-
+        select.innerHTML = '';
         sheets.forEach(sheet => {
             const title = sheet.properties.title;
             const option = document.createElement('option');
@@ -233,33 +220,25 @@ async function loadSheets(fileId) {
             if (title === selectedSheetName) option.selected = true;
             select.appendChild(option);
         });
-
         select.classList.remove('hidden');
-
-        // Ensure selected sheet name exists, else pick first
         if (!sheets.some(s => s.properties.title === selectedSheetName)) {
             selectedSheetName = sheets[0].properties.title;
             localStorage.setItem('faturaScan_sheetName', selectedSheetName);
             select.value = selectedSheetName;
         }
-
         updateUIState();
-
     } catch (err) {
-        console.error("Error loading sheets:", err);
-        alert("Erro ao carregar abas da planilha.");
+        console.error(err);
     }
 }
 
-
-// --- Main App Logic ---
+// --- Camera ---
 
 async function startCamera() {
     if (!selectedSpreadsheetId) {
         alert("Selecione uma planilha primeiro!");
         return;
     }
-
     try {
         mediaStream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: currentFacingMode }
@@ -269,8 +248,7 @@ async function startCamera() {
         formView.classList.add('hidden');
         cameraView.classList.remove('hidden');
     } catch (err) {
-        console.error("Camera error:", err);
-        alert("Erro ao aceder à câmara.");
+        alert("Erro na câmara.");
     }
 }
 
@@ -299,71 +277,91 @@ function capturePhoto() {
     if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
     cameraView.classList.add('hidden');
 
-    capturedImage.src = canvas.toDataURL('image/png');
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.8); // JPEG is better for AI upload size
+    capturedImage.src = dataUrl;
     formView.classList.remove('hidden');
     emptyState.classList.add('hidden');
 
-    processImage(capturedImage.src);
+    analyzeWithGemini(dataUrl);
 }
 
-async function processImage(imageData) {
+// --- GEMINI AI INTEGRATION ---
+
+async function analyzeWithGemini(base64Image) {
+    if (CONFIG.GEMINI_KEY === 'YOUR_GEMINI_API_KEY_HERE') {
+        alert("⚠️ FALTA A CHAVE GEMINI!\n\nConfigure a GEMINI_KEY no app.js.");
+        return;
+    }
+
     ocrLoading.classList.remove('hidden');
+    const loadText = ocrLoading.querySelector('p');
+    loadText.innerText = "A inteligência artificial a analisar...";
+
     try {
-        const worker = await Tesseract.createWorker('por');
-        const { data: { text } } = await worker.recognize(imageData);
-        console.log("OCR:", text);
-        await worker.terminate();
-        extractData(text);
+        // Strip header (data:image/jpeg;base64,)
+        const base64Data = base64Image.split(',')[1];
+
+        const model = 'gemini-1.5-flash';
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${CONFIG.GEMINI_KEY}`;
+
+        const prompt = `
+            Analise esta fatura/recibo e extraia os seguintes dados em formato JSON estrito (sem markdown):
+            {
+                "date": "YYYY-MM-DD" (data da fatura, formato ISO. Se não encontrar, use hoje),
+                "amount": 0.00 (valor total numérico, use ponto para decimais),
+                "description": "Texto curto descrevendo o comerciante (ex: Restaurante X, Supermercado Y)"
+            }
+        `;
+
+        const requestBody = {
+            contents: [{
+                parts: [
+                    { text: prompt },
+                    { inline_data: { mime_type: "image/jpeg", data: base64Data } }
+                ]
+            }]
+        };
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody)
+        });
+
+        const data = await response.json();
+
+        if (data.candidates && data.candidates[0].content) {
+            const rawText = data.candidates[0].content.parts[0].text;
+            // Clean markdown if present
+            const jsonText = rawText.replace(/```json|```/g, '').trim();
+            const result = JSON.parse(jsonText);
+
+            console.log("AI Result:", result);
+
+            // Populate Form
+            if (result.date) document.getElementById('date').value = result.date;
+            if (result.amount) document.getElementById('amount').value = result.amount;
+            if (result.description) document.getElementById('description').value = result.description;
+
+        } else {
+            throw new Error("Resposta inválida da AI");
+        }
+
     } catch (err) {
-        console.error(err);
-        alert("Erro no OCR.");
+        console.error("AI Error:", err);
+        alert("Erro na análise IA: " + err.message);
     } finally {
         ocrLoading.classList.add('hidden');
+        loadText.innerText = "A analisar texto...";
     }
 }
 
-function extractData(text) {
-    // Regex Date (dd/mm/yyyy or yyyy-mm-dd)
-    const dateRegex = /(\d{1,2}[-\/.]\d{1,2}[-\/.]\d{2,4})/;
-    const dateMatch = text.match(dateRegex);
-    if (dateMatch) {
-        const parts = dateMatch[0].split(/[-\/.]/);
-        // Naive date parsing, assuming Day first for PORTUGAL
-        let d = parts[0].padStart(2, '0'), m = parts[1].padStart(2, '0'), y = parts[2];
-        // If year is first...
-        if (parts[0].length === 4) { y = parts[0]; m = parts[1]; d = parts[2]; }
-        if (y.length === 2) y = "20" + y;
-        document.getElementById('date').value = `${y}-${m}-${d}`;
-    } else {
-        document.getElementById('date').valueAsDate = new Date();
-    }
 
-    // Amounts
-    let max = 0;
-    const matches = text.match(/\d+[.,]\d{2}/g);
-    if (matches) {
-        matches.forEach(m => {
-            let v = parseFloat(m.replace(',', '.'));
-            if (v > max && v < 100000) max = v;
-        });
-    }
-    if (max > 0) document.getElementById('amount').value = max.toFixed(2);
-}
-
-function cancelForm() {
-    formView.classList.add('hidden');
-    emptyState.classList.remove('hidden');
-    document.getElementById('invoice-form').reset();
-}
+// --- Submission ---
 
 async function submitForm(e) {
     e.preventDefault();
-
-    // Safety check just in case
-    if (CONFIG.API_KEY.includes('YOUR_API_KEY')) {
-        alert("Erro: API Key não configurada.");
-        return;
-    }
+    if (!selectedSpreadsheetId) { alert("Selecione planilha."); return; }
 
     const date = document.getElementById('date').value;
     const amount = document.getElementById('amount').value;
@@ -375,18 +373,13 @@ async function submitForm(e) {
     submitBtn.disabled = true;
 
     try {
-        // USE SELECTED SHEET NAME
         const range = `'${selectedSheetName}'!A:D`;
-
-        // Append 
-        // Order: Description, Amount, Date
-        const values = [
-            [description, amount, date]
-        ];
+        // Order: Desc, Amount, Date
+        const values = [[description, amount, date]];
 
         const response = await gapi.client.sheets.spreadsheets.values.append({
             spreadsheetId: selectedSpreadsheetId,
-            range: range, // Appends to cols A:C
+            range: range,
             valueInputOption: 'USER_ENTERED',
             resource: { values: values }
         });
@@ -395,20 +388,25 @@ async function submitForm(e) {
             alert("Salvo com sucesso!");
             cancelForm();
         } else {
-            console.error(response);
-            throw new Error('API Response Error');
+            throw new Error('API Error');
         }
 
     } catch (err) {
-        console.error("Submit error:", err);
-        if (err.result && err.result.error && err.result.error.code === 401) {
-            alert("Sessão expirada. Faça login novamente.");
+        console.error(err);
+        if (err.result?.error?.code === 401) {
+            alert("Faça login novamente.");
             handleSignout();
         } else {
-            alert("Erro ao salvar. Verifique se a Aba existe.");
+            alert("Erro ao salvar.");
         }
     } finally {
         btnText.innerText = originalText;
         submitBtn.disabled = false;
     }
+}
+
+function cancelForm() {
+    formView.classList.add('hidden');
+    emptyState.classList.remove('hidden');
+    document.getElementById('invoice-form').reset();
 }
