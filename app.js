@@ -12,9 +12,9 @@ const submitBtn = document.getElementById('submit-btn');
 
 // --- GOOGLE CONFIGURATION (USER MUST FILL THIS) ---
 const CONFIG = {
-    API_KEY: 'YOUR_API_KEY',       // From Google Cloud Console
-    CLIENT_ID: 'YOUR_CLIENT_ID',   // From Google Cloud Console
-    APP_ID: 'YOUR_PROJECT_NUMBER', // First part of Client ID (e.g., 123456789)
+    API_KEY: 'AIzaSyD5yY3UDK7tHYExgW0JKs2UEx3Y5Yeum4o',       // From Google Cloud Console
+    CLIENT_ID: '1023385440722-8i7vd1vlvfa8bniddojojlgadtsnrtod.apps.googleusercontent.com',   // From Google Cloud Console
+    APP_ID: '1023385440722', // First part of Client ID (e.g., 123456789)
 };
 
 // Scopes
