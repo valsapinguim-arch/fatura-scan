@@ -432,3 +432,22 @@ function cancelForm() {
     emptyState.classList.remove('hidden');
     document.getElementById('invoice-form').reset();
 }
+
+// --- Debug ---
+window.debugModels = async function () {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${CONFIG.GEMINI_KEY}`;
+    try {
+        alert("A consultar modelos...");
+        const resp = await fetch(url);
+        const data = await resp.json();
+        if (data.models) {
+            const names = data.models.map(m => m.name.replace('models/', '')).join('\n');
+            alert("Modelos Disponíveis:\n" + names);
+            console.log(data.models);
+        } else {
+            alert("Erro API: " + JSON.stringify(data));
+        }
+    } catch (e) {
+        alert("Erro Rede: " + e);
+    }
+};
