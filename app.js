@@ -10,11 +10,11 @@ const ocrLoading = document.getElementById('ocr-loading');
 const invoiceForm = document.getElementById('invoice-form');
 const submitBtn = document.getElementById('submit-btn');
 
-// --- GOOGLE CONFIGURATION (USER MUST FILL THIS) ---
+// --- GOOGLE CONFIGURATION ---
 const CONFIG = {
-    API_KEY: 'AIzaSyD5yY3UDK7tHYExgW0JKs2UEx3Y5Yeum4o',       // From Google Cloud Console
-    CLIENT_ID: '1023385440722-8i7vd1vlvfa8bniddojojlgadtsnrtod.apps.googleusercontent.com',   // From Google Cloud Console
-    APP_ID: '1023385440722', // First part of Client ID (e.g., 123456789)
+    API_KEY: 'AIzaSyD5yY3UDK7tHYExgW0JKs2UEx3Y5Yeum4o',
+    CLIENT_ID: '1023385440722-8i7vd1vlvfa8bniddojojlgadtsnrtod.apps.googleusercontent.com',
+    APP_ID: '1023385440722',
 };
 
 // Scopes
@@ -24,15 +24,17 @@ const DISCOVERY_DOC = 'https://sheets.googleapis.com/$discovery/rest?version=v4'
 let tokenClient;
 let gapiInited = false;
 let gisInited = false;
+
+// Saved State
 let selectedSpreadsheetId = localStorage.getItem('faturaScan_sheetId');
+let selectedSheetName = localStorage.getItem('faturaScan_sheetName') || 'Sheet1'; // Default
+
 let mediaStream = null;
 let currentFacingMode = 'environment';
 
 // --- Initialization ---
 
-// Called from index.html scripts if we used callback, but here we manually init
 window.onload = () => {
-    // Basic service worker
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('./sw.js').catch(console.error);
     }
@@ -41,7 +43,6 @@ window.onload = () => {
     if (typeof gapi !== 'undefined') gapi.load('client:picker', intializeGapiClient);
     if (typeof google !== 'undefined') intializeGisClient();
 
-    // Check if we have a sheet saved
     updateUIState();
 };
 
@@ -58,14 +59,13 @@ function intializeGisClient() {
     tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CONFIG.CLIENT_ID,
         scope: SCOPES,
-        callback: '', // defined at request time
+        callback: '',
     });
     gisInited = true;
     updateUIState();
 }
 
 function updateUIState() {
-    // Inject Auth UI if not present
     const authContainer = document.getElementById('auth-container');
     if (!authContainer && document.getElementById('empty-state')) {
         createAuthUI();
@@ -74,8 +74,11 @@ function updateUIState() {
     const sheetLabel = document.getElementById('current-sheet-label');
     if (sheetLabel) {
         if (selectedSpreadsheetId) {
-            sheetLabel.innerText = "Planilha conectada ✅";
-            sheetLabel.className = "text-green-400 text-sm font-medium mb-4";
+            // Show file found and current tab
+            sheetLabel.innerHTML = `
+                <div class="text-green-400 text-sm font-medium mb-1">Conectado ✅</div>
+                <div class="text-xs text-slate-400">Aba: <b>${selectedSheetName}</b></div>
+            `;
         } else {
             sheetLabel.innerText = "Nenhuma planilha selecionada";
             sheetLabel.className = "text-yellow-500 text-sm font-medium mb-4";
@@ -107,15 +110,24 @@ function createAuthUI() {
     pickerBtn.innerHTML = `<i data-lucide="file-spreadsheet" class="w-5 h-5 inline mr-2 h-5 w-5"></i> Selecionar Planilha`;
     pickerBtn.onclick = createPicker;
 
+    // Tab Selector Dropdown (Hidden initially)
+    const tabSelector = document.createElement('select');
+    tabSelector.id = 'tab-selector';
+    tabSelector.className = 'w-full p-3 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm hidden focus:ring-2 focus:ring-blue-500';
+    tabSelector.onchange = (e) => {
+        selectedSheetName = e.target.value;
+        localStorage.setItem('faturaScan_sheetName', selectedSheetName);
+        updateUIState();
+    };
+
     container.appendChild(sheetInfo);
     container.appendChild(authBtn);
     container.appendChild(pickerBtn);
+    container.appendChild(tabSelector);
 
-    // Insert before the capture button in empty state
     const captureBtn = document.querySelector('#empty-state button');
     emptyState.insertBefore(container, captureBtn);
 
-    // Initial check
     checkToken();
 }
 
@@ -128,9 +140,11 @@ function checkToken() {
         btn.innerHTML = `<i data-lucide="log-out" class="w-5 h-5"></i><span>Sair da Conta</span>`;
         btn.onclick = handleSignout;
         pBtn.classList.remove('hidden');
-    } else {
-        // We can't easily check validity without trying, but let's assume signed out state initially
-        // or rely on explicit login.
+
+        // If we have a file selected, load its tabs
+        if (selectedSpreadsheetId) {
+            loadSheets(selectedSpreadsheetId);
+        }
     }
 }
 
@@ -138,7 +152,6 @@ function handleAuthClick() {
     tokenClient.callback = async (resp) => {
         if (resp.error) throw resp;
         checkToken();
-        // Auto open picker if no sheet selected
         if (!selectedSpreadsheetId) createPicker();
     };
     if (gapi.client.getToken() === null) {
@@ -154,12 +167,15 @@ function handleSignout() {
         google.accounts.oauth2.revoke(token.access_token);
         gapi.client.setToken('');
         localStorage.removeItem('faturaScan_sheetId');
+        localStorage.removeItem('faturaScan_sheetName');
         selectedSpreadsheetId = null;
+        selectedSheetName = 'Sheet1';
 
         const btn = document.getElementById('auth-btn');
         btn.innerHTML = `<img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" class="w-5 h-5"/><span>Conectar Google Drive</span>`;
         btn.onclick = handleAuthClick;
         document.getElementById('picker-btn').classList.add('hidden');
+        document.getElementById('tab-selector').classList.add('hidden');
         updateUIState();
     }
 }
@@ -167,7 +183,7 @@ function handleSignout() {
 // --- Drive Picker ---
 
 function createPicker() {
-    if (!selectedSpreadsheetId && !gapi.client.getToken()) {
+    if (!gapi.client.getToken()) {
         alert("Precisa de fazer login primeiro.");
         return;
     }
@@ -189,20 +205,58 @@ function createPicker() {
 function pickerCallback(data) {
     if (data.action === google.picker.Action.PICKED) {
         const fileId = data.docs[0].id;
-        const fileName = data.docs[0].name;
         selectedSpreadsheetId = fileId;
         localStorage.setItem('faturaScan_sheetId', fileId);
+
+        // Load Tabs for this sheet
+        loadSheets(fileId);
+
+        alert("Planilha selecionada! Carregando abas...");
+    }
+}
+
+async function loadSheets(fileId) {
+    try {
+        const response = await gapi.client.sheets.spreadsheets.get({
+            spreadsheetId: fileId
+        });
+
+        const sheets = response.result.sheets;
+        const select = document.getElementById('tab-selector');
+        select.innerHTML = ''; // clear
+
+        sheets.forEach(sheet => {
+            const title = sheet.properties.title;
+            const option = document.createElement('option');
+            option.value = title;
+            option.innerText = title;
+            if (title === selectedSheetName) option.selected = true;
+            select.appendChild(option);
+        });
+
+        select.classList.remove('hidden');
+
+        // Ensure selected sheet name exists, else pick first
+        if (!sheets.some(s => s.properties.title === selectedSheetName)) {
+            selectedSheetName = sheets[0].properties.title;
+            localStorage.setItem('faturaScan_sheetName', selectedSheetName);
+            select.value = selectedSheetName;
+        }
+
         updateUIState();
-        alert(`Planilha "${fileName}" selecionada!`);
+
+    } catch (err) {
+        console.error("Error loading sheets:", err);
+        alert("Erro ao carregar abas da planilha.");
     }
 }
 
 
-// --- Existing Camera & OCR Logic (Preserved) ---
+// --- Main App Logic ---
 
 async function startCamera() {
     if (!selectedSpreadsheetId) {
-        alert("Por favor, selecione uma planilha onde guardar os dados primeiro.");
+        alert("Selecione uma planilha primeiro!");
         return;
     }
 
@@ -215,8 +269,8 @@ async function startCamera() {
         formView.classList.add('hidden');
         cameraView.classList.remove('hidden');
     } catch (err) {
-        console.error("Error accessing camera:", err);
-        alert("Erro ao acessar a câmera.");
+        console.error("Camera error:", err);
+        alert("Erro ao aceder à câmara.");
     }
 }
 
@@ -245,12 +299,11 @@ function capturePhoto() {
     if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
     cameraView.classList.add('hidden');
 
-    const dataUrl = canvas.toDataURL('image/png');
-    capturedImage.src = dataUrl;
+    capturedImage.src = canvas.toDataURL('image/png');
     formView.classList.remove('hidden');
     emptyState.classList.add('hidden');
 
-    processImage(dataUrl);
+    processImage(capturedImage.src);
 }
 
 async function processImage(imageData) {
@@ -262,33 +315,35 @@ async function processImage(imageData) {
         await worker.terminate();
         extractData(text);
     } catch (err) {
-        console.error("OCR Error:", err);
-        alert("Falha no OCR.");
+        console.error(err);
+        alert("Erro no OCR.");
     } finally {
         ocrLoading.classList.add('hidden');
     }
 }
 
 function extractData(text) {
+    // Regex Date (dd/mm/yyyy or yyyy-mm-dd)
     const dateRegex = /(\d{1,2}[-\/.]\d{1,2}[-\/.]\d{2,4})/;
     const dateMatch = text.match(dateRegex);
     if (dateMatch) {
         const parts = dateMatch[0].split(/[-\/.]/);
+        // Naive date parsing, assuming Day first for PORTUGAL
         let d = parts[0].padStart(2, '0'), m = parts[1].padStart(2, '0'), y = parts[2];
+        // If year is first...
+        if (parts[0].length === 4) { y = parts[0]; m = parts[1]; d = parts[2]; }
         if (y.length === 2) y = "20" + y;
         document.getElementById('date').value = `${y}-${m}-${d}`;
     } else {
         document.getElementById('date').valueAsDate = new Date();
     }
 
-    // Improve amounts: find X,XX or X.XX that is not a date
+    // Amounts
     let max = 0;
-    const amountRegex = /\d+[.,]\d{2}/g;
-    const matches = text.match(amountRegex);
+    const matches = text.match(/\d+[.,]\d{2}/g);
     if (matches) {
         matches.forEach(m => {
             let v = parseFloat(m.replace(',', '.'));
-            // simple heuristic: exclude unlikely large years or small fragments
             if (v > max && v < 100000) max = v;
         });
     }
@@ -301,17 +356,12 @@ function cancelForm() {
     document.getElementById('invoice-form').reset();
 }
 
-// --- New Submission Logic (Sheets API) ---
-
 async function submitForm(e) {
     e.preventDefault();
 
-    if (CONFIG.API_KEY === 'YOUR_API_KEY') {
-        alert("ERRO: Configure as chaves da API no arquivo app.js!");
-        return;
-    }
-    if (!selectedSpreadsheetId) {
-        alert("Nenhuma planilha selecionada.");
+    // Safety check just in case
+    if (CONFIG.API_KEY.includes('YOUR_API_KEY')) {
+        alert("Erro: API Key não configurada.");
         return;
     }
 
@@ -325,14 +375,14 @@ async function submitForm(e) {
     submitBtn.disabled = true;
 
     try {
-        // Append to Sheet1
-        const values = [
-            [new Date().toISOString(), date, amount, description]
-        ];
+        // USE SELECTED SHEET NAME
+        const range = `'${selectedSheetName}'!A:D`;
+
+        const values = [[new Date().toISOString(), date, amount, description]];
 
         const response = await gapi.client.sheets.spreadsheets.values.append({
             spreadsheetId: selectedSpreadsheetId,
-            range: 'A:D', // Appends to first sheet columns A-D
+            range: range,
             valueInputOption: 'USER_ENTERED',
             resource: { values: values }
         });
@@ -341,17 +391,17 @@ async function submitForm(e) {
             alert("Salvo com sucesso!");
             cancelForm();
         } else {
-            throw new Error('API Response not 200');
+            console.error(response);
+            throw new Error('API Response Error');
         }
 
     } catch (err) {
-        console.error("Submission error:", err);
-        // Handle auth error
+        console.error("Submit error:", err);
         if (err.result && err.result.error && err.result.error.code === 401) {
             alert("Sessão expirada. Faça login novamente.");
             handleSignout();
         } else {
-            alert("Erro ao salvar: " + JSON.stringify(err));
+            alert("Erro ao salvar. Verifique se a Aba existe.");
         }
     } finally {
         btnText.innerText = originalText;
