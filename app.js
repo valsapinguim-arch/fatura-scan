@@ -285,93 +285,118 @@ function capturePhoto() {
     analyzeWithGemini(dataUrl);
 }
 
-// --- GEMINI AI INTEGRATION ---
+// --- GEMINI AI INTEGRATION (ROBUST FALLBACK) ---
 
 async function analyzeWithGemini(base64Image) {
-    if (CONFIG.GEMINI_KEY === 'YOUR_GEMINI_API_KEY_HERE') {
+    if (CONFIG.GEMINI_KEY.includes('YOUR_GEMINI')) {
         alert("⚠️ FALTA A CHAVE GEMINI!\n\nConfigure a GEMINI_KEY no app.js.");
         return;
     }
 
     ocrLoading.classList.remove('hidden');
     const loadText = ocrLoading.querySelector('p');
-    loadText.innerText = "A inteligência artificial a analisar...";
+    loadText.innerText = "IA a pensar...";
+
+    // Priority list of models to try
+    const MODELS = [
+        'gemini-1.5-flash',
+        'gemini-1.5-flash-001',
+        'gemini-1.5-flash-8b',
+        'gemini-1.5-pro',
+        'gemini-1.5-pro-001',
+        'gemini-pro-vision',
+        'gemini-2.0-flash-exp' // Catching potential future/typo versions
+    ];
 
     try {
-        // Strip header (data:image/jpeg;base64,)
         const base64Data = base64Image.split(',')[1];
+        let lastError = null;
+        let successData = null;
+        let usedModel = '';
 
-        // Revert to stable Flash model
-        const model = 'gemini-1.5-flash';
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${CONFIG.GEMINI_KEY}`;
+        // Try models sequentially
+        for (const model of MODELS) {
+            try {
+                console.log(`Tentando modelo: ${model}...`);
+                loadText.innerText = `A tentar modelo: ${model}...`;
 
-        const prompt = `
-            Analise esta fatura/recibo e extraia os seguintes dados em formato JSON estrito (sem markdown):
-            {
-                "date": "YYYY-MM-DD" (data da fatura, formato ISO. Se não encontrar, use hoje),
-                "amount": 0.00 (valor total numérico, use ponto para decimais),
-                "description": "Texto curto descrevendo o comerciante (ex: Restaurante X, Supermercado Y)"
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${CONFIG.GEMINI_KEY}`;
+
+                const prompt = `
+                    Analise esta fatura/recibo e extraia os seguintes dados em formato JSON estrito (sem markdown):
+                    {
+                        "date": "YYYY-MM-DD" (data da fatura, formato ISO. Se não encontrar, use hoje),
+                        "amount": 0.00 (valor total numérico, use ponto para decimais),
+                        "description": "Texto curto descrevendo o comerciante (ex: Restaurante X, Supermercado Y)"
+                    }
+                `;
+
+                const requestBody = {
+                    contents: [{
+                        parts: [
+                            { text: prompt },
+                            { inline_data: { mime_type: "image/jpeg", data: base64Data } }
+                        ]
+                    }],
+                    safetySettings: [
+                        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+                    ]
+                };
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+
+                const data = await response.json();
+
+                if (data.error) throw new Error(data.error.message);
+                if (!data.candidates || !data.candidates[0].content) throw new Error("Sem resposta candidata");
+
+                // If we get here, it worked!
+                successData = data;
+                usedModel = model;
+                break; // Stop loop
+
+            } catch (err) {
+                console.warn(`Falha no modelo ${model}:`, err);
+                lastError = err;
             }
-        `;
-
-        const requestBody = {
-            contents: [{
-                parts: [
-                    { text: prompt },
-                    { inline_data: { mime_type: "image/jpeg", data: base64Data } }
-                ]
-            }],
-            safetySettings: [
-                { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-                { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-                { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-                { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-            ]
-        };
-
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody)
-        });
-
-        const data = await response.json();
-
-        if (data.error) {
-            throw new Error(data.error.message || "Erro API");
         }
 
-        if (data.candidates && data.candidates[0].content) {
-            let rawText = data.candidates[0].content.parts[0].text;
-            console.log("Raw AI:", rawText);
+        if (!successData) {
+            throw lastError || new Error("Nenhum modelo funcionou. Verifique Chave API.");
+        }
 
-            // Robust JSON extraction
-            const firstBrace = rawText.indexOf('{');
-            const lastBrace = rawText.lastIndexOf('}');
+        console.log(`Sucesso com modelo: ${usedModel}`);
 
-            if (firstBrace >= 0 && lastBrace > firstBrace) {
-                const jsonStr = rawText.substring(firstBrace, lastBrace + 1);
-                const result = JSON.parse(jsonStr);
+        // Process Success Data
+        const rawText = successData.candidates[0].content.parts[0].text;
+        console.log("Raw AI:", rawText);
 
-                // Populate Form
-                if (result.date) document.getElementById('date').value = result.date;
-                if (result.amount) document.getElementById('amount').value = result.amount;
-                if (result.description) document.getElementById('description').value = result.description;
+        const firstBrace = rawText.indexOf('{');
+        const lastBrace = rawText.lastIndexOf('}');
 
-                // Visual feedback
-                submitBtn.focus(); // Scroll to bottom
-            } else {
-                alert("AI não retornou JSON válido: " + rawText);
-            }
+        if (firstBrace >= 0 && lastBrace > firstBrace) {
+            const jsonStr = rawText.substring(firstBrace, lastBrace + 1);
+            const result = JSON.parse(jsonStr);
 
+            if (result.date) document.getElementById('date').value = result.date;
+            if (result.amount) document.getElementById('amount').value = result.amount;
+            if (result.description) document.getElementById('description').value = result.description;
+
+            submitBtn.focus();
         } else {
-            // Safety or other block
-            alert("AI recusou processar (Safety Block?). Tente outra foto.");
+            alert("Sucesso (" + usedModel + "), mas JSON inválido. Tente outra foto.");
         }
 
     } catch (err) {
-        console.error("AI Error:", err);
-        alert("Erro na análise IA: " + err.message);
+        console.error("AI Fatal:", err);
+        alert("Erro Final IA: " + err.message);
     } finally {
         ocrLoading.classList.add('hidden');
         loadText.innerText = "A analisar texto...";
