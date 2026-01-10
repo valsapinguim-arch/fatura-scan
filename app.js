@@ -301,8 +301,8 @@ async function analyzeWithGemini(base64Image) {
         // Strip header (data:image/jpeg;base64,)
         const base64Data = base64Image.split(',')[1];
 
-        // Change to Pro model as Flash might be region locked or rolling out
-        const model = 'gemini-1.5-pro';
+        // Revert to stable Flash model
+        const model = 'gemini-1.5-flash';
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${CONFIG.GEMINI_KEY}`;
 
         const prompt = `
