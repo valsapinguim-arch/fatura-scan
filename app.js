@@ -330,6 +330,12 @@ async function analyzeWithGemini(base64Image) {
 
         const data = await response.json();
 
+        // Error handling
+        if (data.error) {
+            console.error("Gemini API Error:", data.error);
+            throw new Error(data.error.message || "Erro na API Gemini");
+        }
+
         if (data.candidates && data.candidates[0].content) {
             const rawText = data.candidates[0].content.parts[0].text;
             // Clean markdown if present
