@@ -285,7 +285,7 @@ function capturePhoto() {
     analyzeWithGemini(dataUrl);
 }
 
-// --- GEMINI AI INTEGRATION (ROBUST FALLBACK) ---
+// --- GEMINI AI INTEGRATION (Simplified) ---
 
 async function analyzeWithGemini(base64Image) {
     if (CONFIG.GEMINI_KEY.includes('YOUR_GEMINI')) {
@@ -295,113 +295,85 @@ async function analyzeWithGemini(base64Image) {
 
     ocrLoading.classList.remove('hidden');
     const loadText = ocrLoading.querySelector('p');
-    loadText.innerText = "IA a pensar...";
+    loadText.innerText = "A inteligência artificial a analisar...";
 
-    // Priority list of models to try
-    // Reduced to avoid hitting rate limits too fast
-    const MODELS = [
-        'gemini-1.5-flash',
-        'gemini-2.0-flash-exp',
-        'gemini-1.5-pro'
-    ];
+    // Simplified to single model to save Quota
+    const model = 'gemini-1.5-flash';
 
     try {
         const base64Data = base64Image.split(',')[1];
-        let lastError = null;
-        let successData = null;
-        let usedModel = '';
+        loadText.innerText = `A contactar Google (${model})...`;
 
-        // Try models sequentially
-        for (const model of MODELS) {
-            try {
-                // Wait 1s between retries to be gentle on API
-                if (lastError) await new Promise(r => setTimeout(r, 1000));
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${CONFIG.GEMINI_KEY}`;
 
-                console.log(`Tentando modelo: ${model}...`);
-                loadText.innerText = `A tentar modelo: ${model}...`;
-
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${CONFIG.GEMINI_KEY}`;
-
-                const prompt = `
-                    Analise esta fatura/recibo e extraia os seguintes dados em formato JSON estrito (sem markdown):
-                    {
-                        "date": "YYYY-MM-DD" (data da fatura, formato ISO. Se não encontrar, use hoje),
-                        "amount": 0.00 (valor total numérico, use ponto para decimais),
-                        "description": "Texto curto descrevendo o comerciante (ex: Restaurante X, Supermercado Y)"
-                    }
-                `;
-
-                const requestBody = {
-                    contents: [{
-                        parts: [
-                            { text: prompt },
-                            { inline_data: { mime_type: "image/jpeg", data: base64Data } }
-                        ]
-                    }],
-                    safetySettings: [
-                        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-                        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-                        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-                        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-                    ]
-                };
-
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(requestBody)
-                });
-
-                const data = await response.json();
-
-                if (data.error) throw new Error(data.error.message);
-                if (!data.candidates || !data.candidates[0].content) throw new Error("Sem resposta candidata");
-
-                // If we get here, it worked!
-                successData = data;
-                usedModel = model;
-                break; // Stop loop
-
-            } catch (err) {
-                console.warn(`Falha no modelo ${model}:`, err);
-                lastError = err;
-
-                // If it's a Quota error, don't try other models, it won't work.
-                if (err.message && (err.message.includes('quota') || err.message.includes('429'))) {
-                    throw new Error("Limite de utilização atingido (Quota). Aguarde 1 minuto e tente novamente.");
-                }
+        const prompt = `
+            Analise esta fatura/recibo e extraia os seguintes dados em formato JSON estrito (sem markdown):
+            {
+                "date": "YYYY-MM-DD" (data da fatura, formato ISO. Se não encontrar, use hoje),
+                "amount": 0.00 (valor total numérico, use ponto para decimais),
+                "description": "Texto curto descrevendo o comerciante (ex: Restaurante X, Supermercado Y)"
             }
+        `;
+
+        const requestBody = {
+            contents: [{
+                parts: [
+                    { text: prompt },
+                    { inline_data: { mime_type: "image/jpeg", data: base64Data } }
+                ]
+            }],
+            safetySettings: [
+                { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+            ]
+        };
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody)
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+            throw new Error(data.error.message || "Erro API");
         }
 
-        if (!successData) {
-            throw lastError || new Error("Nenhum modelo funcionou. Verifique Chave API.");
-        }
+        if (data.candidates && data.candidates[0].content) {
+            let rawText = data.candidates[0].content.parts[0].text;
+            console.log("Raw AI:", rawText);
 
-        console.log(`Sucesso com modelo: ${usedModel}`);
+            // Robust JSON extraction
+            const firstBrace = rawText.indexOf('{');
+            const lastBrace = rawText.lastIndexOf('}');
 
-        // Process Success Data
-        const rawText = successData.candidates[0].content.parts[0].text;
-        console.log("Raw AI:", rawText);
+            if (firstBrace >= 0 && lastBrace > firstBrace) {
+                const jsonStr = rawText.substring(firstBrace, lastBrace + 1);
+                const result = JSON.parse(jsonStr);
 
-        const firstBrace = rawText.indexOf('{');
-        const lastBrace = rawText.lastIndexOf('}');
+                if (result.date) document.getElementById('date').value = result.date;
+                if (result.amount) document.getElementById('amount').value = result.amount;
+                if (result.description) document.getElementById('description').value = result.description;
 
-        if (firstBrace >= 0 && lastBrace > firstBrace) {
-            const jsonStr = rawText.substring(firstBrace, lastBrace + 1);
-            const result = JSON.parse(jsonStr);
-
-            if (result.date) document.getElementById('date').value = result.date;
-            if (result.amount) document.getElementById('amount').value = result.amount;
-            if (result.description) document.getElementById('description').value = result.description;
-
-            submitBtn.focus();
+                submitBtn.focus();
+            } else {
+                alert("Sucesso, mas JSON inválido: " + rawText);
+            }
         } else {
-            alert("Sucesso (" + usedModel + "), mas JSON inválido. Tente outra foto.");
+            alert("AI recusou processar. Tente outra foto.");
         }
 
     } catch (err) {
-        console.error("AI Fatal:", err);
-        alert("Erro Final IA: " + err.message);
+        console.error("AI Error:", err);
+        // User friendly error for Quota
+        if (err.message && (err.message.includes('quota') || err.message.includes('429'))) {
+            alert("⚠️ LIMITES DO GOOGLE ATINGIDOS!\n\nVocê fez muitos testes seguidos.\nA Google bloqueou temporariamente a chave.\n\nSOLUÇÃO: Aguarde 2 a 3 minutos sem mexer na app.");
+        } else {
+            alert("Erro IA: " + err.message);
+        }
     } finally {
         ocrLoading.classList.add('hidden');
         loadText.innerText = "A analisar texto...";
