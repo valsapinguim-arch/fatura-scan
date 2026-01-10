@@ -298,14 +298,11 @@ async function analyzeWithGemini(base64Image) {
     loadText.innerText = "IA a pensar...";
 
     // Priority list of models to try
+    // Reduced to avoid hitting rate limits too fast
     const MODELS = [
         'gemini-1.5-flash',
-        'gemini-1.5-flash-001',
-        'gemini-1.5-flash-8b',
-        'gemini-1.5-pro',
-        'gemini-1.5-pro-001',
-        'gemini-pro-vision',
-        'gemini-2.0-flash-exp' // Catching potential future/typo versions
+        'gemini-2.0-flash-exp',
+        'gemini-1.5-pro'
     ];
 
     try {
@@ -317,6 +314,9 @@ async function analyzeWithGemini(base64Image) {
         // Try models sequentially
         for (const model of MODELS) {
             try {
+                // Wait 1s between retries to be gentle on API
+                if (lastError) await new Promise(r => setTimeout(r, 1000));
+
                 console.log(`Tentando modelo: ${model}...`);
                 loadText.innerText = `A tentar modelo: ${model}...`;
 
