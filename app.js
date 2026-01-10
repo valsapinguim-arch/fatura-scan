@@ -365,6 +365,11 @@ async function analyzeWithGemini(base64Image) {
             } catch (err) {
                 console.warn(`Falha no modelo ${model}:`, err);
                 lastError = err;
+
+                // If it's a Quota error, don't try other models, it won't work.
+                if (err.message && (err.message.includes('quota') || err.message.includes('429'))) {
+                    throw new Error("Limite de utilização atingido (Quota). Aguarde 1 minuto e tente novamente.");
+                }
             }
         }
 
