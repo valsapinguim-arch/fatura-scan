@@ -320,7 +320,13 @@ async function analyzeWithGemini(base64Image) {
                     { text: prompt },
                     { inline_data: { mime_type: "image/jpeg", data: base64Data } }
                 ]
-            }]
+            }],
+            safetySettings: [
+                { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+            ]
         };
 
         const response = await fetch(url, {
@@ -331,27 +337,36 @@ async function analyzeWithGemini(base64Image) {
 
         const data = await response.json();
 
-        // Error handling
         if (data.error) {
-            console.error("Gemini API Error:", data.error);
-            throw new Error(data.error.message || "Erro na API Gemini");
+            throw new Error(data.error.message || "Erro API");
         }
 
         if (data.candidates && data.candidates[0].content) {
-            const rawText = data.candidates[0].content.parts[0].text;
-            // Clean markdown if present
-            const jsonText = rawText.replace(/```json|```/g, '').trim();
-            const result = JSON.parse(jsonText);
+            let rawText = data.candidates[0].content.parts[0].text;
+            console.log("Raw AI:", rawText);
 
-            console.log("AI Result:", result);
+            // Robust JSON extraction
+            const firstBrace = rawText.indexOf('{');
+            const lastBrace = rawText.lastIndexOf('}');
 
-            // Populate Form
-            if (result.date) document.getElementById('date').value = result.date;
-            if (result.amount) document.getElementById('amount').value = result.amount;
-            if (result.description) document.getElementById('description').value = result.description;
+            if (firstBrace >= 0 && lastBrace > firstBrace) {
+                const jsonStr = rawText.substring(firstBrace, lastBrace + 1);
+                const result = JSON.parse(jsonStr);
+
+                // Populate Form
+                if (result.date) document.getElementById('date').value = result.date;
+                if (result.amount) document.getElementById('amount').value = result.amount;
+                if (result.description) document.getElementById('description').value = result.description;
+
+                // Visual feedback
+                submitBtn.focus(); // Scroll to bottom
+            } else {
+                alert("AI não retornou JSON válido: " + rawText);
+            }
 
         } else {
-            throw new Error("Resposta inválida da AI");
+            // Safety or other block
+            alert("AI recusou processar (Safety Block?). Tente outra foto.");
         }
 
     } catch (err) {
