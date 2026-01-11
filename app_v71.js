@@ -228,16 +228,27 @@ async function loadSheets(fileId) {
         updateUIState();
     } catch (err) {
         isSheetsLoadedForCurrentFile = false;
-        console.error("DEBUG ERR:", err);
+        console.error("SHEET_ERROR:", err);
 
-        // MOSTRAR ERRO COMPLETO PARA DEBUG
-        alert("INFO DE DEPURAÇÃO (Google API):\n" + JSON.stringify(err, null, 2));
+        let msg = "Erro desconhecido";
+        let status = "N/A";
 
-        const errorMsg = err.result?.error?.message || err.message || "Erro desconhecido";
-        select.innerHTML = `<option value="">⚠️ Erro: ${errorMsg}</option>`;
+        if (err.result && err.result.error) {
+            msg = err.result.error.message;
+            status = err.result.error.code || err.status;
+        } else if (err.message) {
+            msg = err.message;
+            status = err.status || "Error";
+        }
+
+        // Mostrar detalhe no dropdown
+        select.innerHTML = `<option value="">⚠️ [${status}] ${msg}</option>`;
         select.classList.remove('hidden');
 
-        if (err.status === 401 || (err.result && err.result.error && err.result.error.code === 401)) {
+        // Alert simples
+        alert("FALHA NA GOOGLE:\nStatus: " + status + "\nMensagem: " + msg);
+
+        if (status == 401) {
             handleSignout();
         }
     }
