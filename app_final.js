@@ -227,7 +227,12 @@ async function loadSheets(fileId) {
         }
         updateUIState();
     } catch (err) {
-        console.error(err);
+        console.error("Erro ao carregar abas:", err);
+        const select = document.getElementById('tab-selector');
+        if (select) {
+            select.innerHTML = '<option>Erro ao carregar abas</option>';
+            select.classList.remove('hidden');
+        }
     }
 }
 
@@ -342,10 +347,18 @@ async function analyzeWithOCR(base64Image) {
             document.getElementById('amount').value = foundAmount;
         }
 
-        // --- 3. Description ---
         const firstLine = lines.find(l => l.trim().length > 3);
         if (firstLine) {
             document.getElementById('description').value = firstLine.trim().substring(0, 30);
+        }
+
+        let foundValue = !!foundAmount;
+        let foundDateUI = !!dateMatch;
+
+        if (!foundValue && !foundDateUI) {
+            alert("⚠️ Não conseguimos ler os dados automaticamente.\nPor favor, garanta que a foto está nítida ou preencha manualmente.");
+        } else if (!foundAmount) {
+            alert("⚠️ Não encontramos o valor total. Por favor, preencha manualmente.");
         }
 
         await worker.terminate();
