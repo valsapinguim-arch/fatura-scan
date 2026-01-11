@@ -96,13 +96,22 @@ function updateUIState() {
 function checkToken() {
     const btn = document.getElementById('auth-btn');
     const pBtn = document.getElementById('picker-btn');
+    const tabSelector = document.getElementById('tab-selector');
+
     if (!btn) return;
 
     if (gapi.client.getToken()) {
         btn.innerHTML = `<i data-lucide="log-out" class="w-5 h-5"></i><span>Sair da Conta</span>`;
         btn.onclick = handleSignout;
         pBtn.classList.remove('hidden');
-        if (selectedSpreadsheetId) loadSheets(selectedSpreadsheetId);
+        if (selectedSpreadsheetId) {
+            loadSheets(selectedSpreadsheetId);
+        } else {
+            tabSelector.classList.add('hidden');
+        }
+    } else {
+        pBtn.classList.add('hidden');
+        tabSelector.classList.add('hidden');
     }
 }
 
@@ -195,6 +204,8 @@ async function loadSheets(fileId) {
 
         select.classList.remove('hidden');
         document.getElementById('picker-btn').classList.remove('hidden');
+
+        select.value = selectedSheetName;
 
         if (!sheets.some(s => s.properties.title === selectedSheetName)) {
             selectedSheetName = sheets[0].properties.title;
@@ -340,11 +351,11 @@ async function analyzeWithOCR(base64Image) {
         const foundDate = !!dateMatch;
 
         if (!foundValue && !foundDate) {
-            alert("⚠️ Não conseguimos encontrar nem a data nem o valor total.\n\nPor favor, verifique se a foto está focada ou insira os dados manualmente.");
+            alert("⚠️ Não conseguimos detetar dados automaticamente.\n\nPor favor, garanta que a foto está nítida ou preencha os campos manualmente.");
         } else if (!foundValue) {
             alert("⚠️ Encontramos a data, mas não o valor total.\nPor favor, preencha o valor manualmente.");
         } else if (!foundDate) {
-            alert("ℹ️ Valor encontrado, mas a data não foi detetada. Usamos a data de hoje.");
+            console.log("Data não encontrada, usando hoje.");
         }
 
         await worker.terminate();
