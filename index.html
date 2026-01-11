@@ -87,7 +87,7 @@
             </div>
             <h1 class="text-xl font-bold tracking-tight">Fatura<span class="text-blue-400">Scan</span> <span
                     onclick="debugModels()"
-                    class="text-xs bg-slate-800 px-2 py-1 rounded text-slate-400 cursor-pointer border border-slate-700 hover:bg-slate-700">v6.1
+                    class="text-xs bg-slate-800 px-2 py-1 rounded text-slate-400 cursor-pointer border border-slate-700 hover:bg-slate-700">v6.2
                     OCR Local</span></h1>
         </div>
         <div id="status-indicator" class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]">
@@ -104,7 +104,28 @@
                 <i data-lucide="camera" class="w-10 h-10 text-slate-400"></i>
             </div>
             <h2 class="text-2xl font-semibold mb-2">Digitalizar Fatura</h2>
-            <p class="text-slate-400 mb-8 max-w-xs">Tire uma foto para extrair automaticamente a data e o valor.</p>
+            <p class="text-slate-400 mb-6 max-w-xs">Tire uma foto para extrair automaticamente a data e o valor.</p>
+
+            <!-- Auth & Sheet Selection (Permanent in HTML) -->
+            <div id="auth-container" class="w-full max-w-xs mb-8 flex flex-col gap-3">
+                <div id="current-sheet-label" class="mb-1">A carregar...</div>
+
+                <button id="auth-btn" onclick="handleAuthClick()"
+                    class="w-full py-3 bg-white text-slate-900 rounded-xl font-semibold hover:bg-slate-100 transition flex items-center justify-center gap-2">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg"
+                        class="w-5 h-5" />
+                    <span>Conectar Google Drive</span>
+                </button>
+
+                <button id="picker-btn" onclick="createPicker()"
+                    class="hidden w-full py-3 bg-slate-800 border border-slate-700 text-white rounded-xl font-semibold hover:bg-slate-700 transition flex items-center justify-center gap-2">
+                    <i data-lucide="file-spreadsheet" class="w-5 h-5"></i> Selecionar Planilha
+                </button>
+
+                <select id="tab-selector"
+                    class="hidden w-full p-3 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-blue-500">
+                </select>
+            </div>
 
             <button onclick="startCamera()"
                 class="group relative px-8 py-4 bg-blue-600 rounded-2xl font-semibold text-lg hover:bg-blue-500 transition-all shadow-lg shadow-blue-600/20 active:scale-95 flex items-center gap-3">

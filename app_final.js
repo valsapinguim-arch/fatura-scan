@@ -68,11 +68,6 @@ function intializeGisClient() {
 }
 
 function updateUIState() {
-    const authContainer = document.getElementById('auth-container');
-    if (!authContainer && document.getElementById('empty-state')) {
-        createAuthUI();
-    }
-
     const sheetLabel = document.getElementById('current-sheet-label');
     if (sheetLabel) {
         if (selectedSpreadsheetId) {
@@ -85,48 +80,15 @@ function updateUIState() {
             sheetLabel.className = "text-yellow-500 text-sm font-medium mb-4";
         }
     }
-}
 
-function createAuthUI() {
-    const container = document.createElement('div');
-    container.id = 'auth-container';
-    container.className = 'w-full max-w-xs mb-8 flex flex-col gap-3';
-
-    const sheetInfo = document.createElement('div');
-    sheetInfo.id = 'current-sheet-label';
-    sheetInfo.innerText = "A carregar...";
-
-    const authBtn = document.createElement('button');
-    authBtn.id = 'auth-btn';
-    authBtn.className = 'w-full py-3 bg-white text-slate-900 rounded-xl font-semibold hover:bg-slate-100 transition flex items-center justify-center gap-2';
-    authBtn.innerHTML = `
-        <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" class="w-5 h-5"/>
-        <span>Conectar Google Drive</span>
-    `;
-    authBtn.onclick = handleAuthClick;
-
-    const pickerBtn = document.createElement('button');
-    pickerBtn.id = 'picker-btn';
-    pickerBtn.className = 'w-full py-3 bg-slate-800 border border-slate-700 text-white rounded-xl font-semibold hover:bg-slate-700 transition hidden';
-    pickerBtn.innerHTML = `<i data-lucide="file-spreadsheet" class="w-5 h-5 inline mr-2 h-5 w-5"></i> Selecionar Planilha`;
-    pickerBtn.onclick = createPicker;
-
-    const tabSelector = document.createElement('select');
-    tabSelector.id = 'tab-selector';
-    tabSelector.className = 'w-full p-3 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm hidden focus:ring-2 focus:ring-blue-500';
-    tabSelector.onchange = (e) => {
-        selectedSheetName = e.target.value;
-        localStorage.setItem('faturaScan_sheetName', selectedSheetName);
-        updateUIState();
-    };
-
-    container.appendChild(sheetInfo);
-    container.appendChild(authBtn);
-    container.appendChild(pickerBtn);
-    container.appendChild(tabSelector);
-
-    const captureBtn = document.querySelector('#empty-state button');
-    emptyState.insertBefore(container, captureBtn);
+    const tabSelector = document.getElementById('tab-selector');
+    if (tabSelector) {
+        tabSelector.onchange = (e) => {
+            selectedSheetName = e.target.value;
+            localStorage.setItem('faturaScan_sheetName', selectedSheetName);
+            updateUIState();
+        };
+    }
 
     checkToken();
 }
@@ -303,6 +265,13 @@ async function analyzeWithOCR(base64Image) {
         loadText.innerText = "A ler imagem (Processamento local)...";
         const { data: { text } } = await worker.recognize(base64Image);
         console.log("OCR Raw Text:", text);
+
+        if (!text || text.trim().length < 5) {
+            alert("❌ Erro: Não foi possível ler qualquer texto na imagem.\n\nCertifique-se que a foto está bem iluminada e próxima da fatura.");
+            await worker.terminate();
+            ocrLoading.classList.add('hidden');
+            return;
+        }
 
         loadText.innerText = "A extrair dados...";
 
