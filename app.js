@@ -298,7 +298,7 @@ async function analyzeWithGemini(base64Image) {
     loadText.innerText = "A inteligência artificial a analisar...";
 
     // Switching to 2.0 Flash as 1.5 seems unavailable for this key/region
-    const model = 'gemini-2.0-flash-exp';
+    const model = 'gemini-1.5-flash';
 
     try {
         const base64Data = base64Image.split(',')[1];
@@ -370,7 +370,7 @@ async function analyzeWithGemini(base64Image) {
         console.error("AI Error:", err);
         // User friendly error for Quota
         if (err.message && (err.message.includes('quota') || err.message.includes('429'))) {
-            alert("⚠️ LIMITES DO GOOGLE ATINGIDOS!\n\nVocê fez muitos testes seguidos.\nA Google bloqueou temporariamente a chave.\n\nSOLUÇÃO: Aguarde 2 a 3 minutos sem mexer na app.");
+            alert(`⚠️ ERRO DE LIMITES (DEBUG)\n\nModelo: ${model}\nErro: ${err.message}\n\nDetalhe: A chave pode ter esgotado o plano gratuito.`);
         } else {
             alert("Erro IA: " + err.message);
         }
