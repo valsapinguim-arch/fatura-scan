@@ -2,7 +2,7 @@ const CACHE_NAME = 'invoice-scanner-v4';
 const ASSETS = [
     './',
     './index.html',
-    './app.js',
+    './app_v5.js',
     './manifest.json',
     'https://cdn.tailwindcss.com',
     'https://unpkg.com/lucide@latest',
