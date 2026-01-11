@@ -82,7 +82,7 @@ function updateUIState() {
     }
 
     const tabSelector = document.getElementById('tab-selector');
-    if (tabSelector) {
+    if (tabSelector && !tabSelector.onchange) {
         tabSelector.onchange = (e) => {
             selectedSheetName = e.target.value;
             localStorage.setItem('faturaScan_sheetName', selectedSheetName);
@@ -168,11 +168,22 @@ function pickerCallback(data) {
 }
 
 async function loadSheets(fileId) {
+    const select = document.getElementById('tab-selector');
+    if (!select) return;
+
     try {
         const response = await gapi.client.sheets.spreadsheets.get({ spreadsheetId: fileId });
         const sheets = response.result.sheets;
-        const select = document.getElementById('tab-selector');
+
         select.innerHTML = '';
+        // Add a placeholder if multiple sheets exist
+        if (sheets.length > 1) {
+            const placeholder = document.createElement('option');
+            placeholder.disabled = true;
+            placeholder.innerText = "-- Selecionar Aba --";
+            select.appendChild(placeholder);
+        }
+
         sheets.forEach(sheet => {
             const title = sheet.properties.title;
             const option = document.createElement('option');
@@ -181,7 +192,10 @@ async function loadSheets(fileId) {
             if (title === selectedSheetName) option.selected = true;
             select.appendChild(option);
         });
+
         select.classList.remove('hidden');
+        document.getElementById('picker-btn').classList.remove('hidden');
+
         if (!sheets.some(s => s.properties.title === selectedSheetName)) {
             selectedSheetName = sheets[0].properties.title;
             localStorage.setItem('faturaScan_sheetName', selectedSheetName);
@@ -190,10 +204,11 @@ async function loadSheets(fileId) {
         updateUIState();
     } catch (err) {
         console.error("Erro ao carregar abas:", err);
-        const select = document.getElementById('tab-selector');
-        if (select) {
-            select.innerHTML = '<option>Erro ao carregar abas</option>';
-            select.classList.remove('hidden');
+        select.innerHTML = '<option value="">⚠️ Erro ao carregar abas</option>';
+        select.classList.remove('hidden');
+        if (err.status === 401) {
+            alert("Sessão expirada. Por favor, conecte novamente.");
+            handleSignout();
         }
     }
 }
@@ -321,13 +336,15 @@ async function analyzeWithOCR(base64Image) {
             document.getElementById('description').value = firstLine.trim().substring(0, 30);
         }
 
-        let foundValue = !!foundAmount;
-        let foundDateUI = !!dateMatch;
+        const foundValue = !!foundAmount;
+        const foundDate = !!dateMatch;
 
-        if (!foundValue && !foundDateUI) {
-            alert("⚠️ Não conseguimos ler os dados automaticamente.\nPor favor, garanta que a foto está nítida ou preencha manualmente.");
-        } else if (!foundAmount) {
-            alert("⚠️ Não encontramos o valor total. Por favor, preencha manualmente.");
+        if (!foundValue && !foundDate) {
+            alert("⚠️ Não conseguimos encontrar nem a data nem o valor total.\n\nPor favor, verifique se a foto está focada ou insira os dados manualmente.");
+        } else if (!foundValue) {
+            alert("⚠️ Encontramos a data, mas não o valor total.\nPor favor, preencha o valor manualmente.");
+        } else if (!foundDate) {
+            alert("ℹ️ Valor encontrado, mas a data não foi detetada. Usamos a data de hoje.");
         }
 
         await worker.terminate();
