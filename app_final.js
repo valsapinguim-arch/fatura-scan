@@ -56,6 +56,7 @@ async function intializeGapiClient() {
     });
     gapiInited = true;
     updateUIState();
+    checkToken();
 }
 
 function intializeGisClient() {
@@ -66,6 +67,7 @@ function intializeGisClient() {
     });
     gisInited = true;
     updateUIState();
+    checkToken();
 }
 
 function updateUIState() {
@@ -90,8 +92,6 @@ function updateUIState() {
             updateUIState();
         };
     }
-
-    checkToken();
 }
 
 function checkToken() {
@@ -174,6 +174,7 @@ function pickerCallback(data) {
         const fileId = data.docs[0].id;
         selectedSpreadsheetId = fileId;
         localStorage.setItem('faturaScan_sheetId', fileId);
+        isSheetsLoadedForCurrentFile = false; // Reset for new file
         loadSheets(fileId);
         alert("Planilha selecionada!");
     }
@@ -434,5 +435,5 @@ function cancelForm() {
 
 // --- Debug ---
 window.debugModels = async function () {
-    alert("OCR Local Ativo (v6.0). AI Desativada.");
+    alert("OCR Local Ativo (v6.6). AI Desativada. Sem limites de uso.");
 };
