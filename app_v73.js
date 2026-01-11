@@ -1,4 +1,3 @@
-alert("🚀 Scanner v7.2: Se vir isto, a aplicação ATUALIZOU com sucesso!");
 
 // DOM Elements
 const mainContainer = document.getElementById('main-container');
@@ -35,9 +34,20 @@ let mediaStream = null;
 let currentFacingMode = 'environment';
 let isSheetsLoadedForCurrentFile = false;
 
+// --- Debug System ---
+function logToScreen(msg, type = 'INFO') {
+    const logEl = document.getElementById('debug-log');
+    if (!logEl) return;
+    const time = new Date().toLocaleTimeString();
+    const color = type === 'ERROR' ? 'text-red-400' : (type === 'SUCCESS' ? 'text-green-400' : 'text-slate-400');
+    logEl.innerHTML += `<div class="${color}">[${time}] ${type}: ${msg}</div>`;
+    console.log(`[${type}] ${msg}`);
+}
+
 // --- Initialization ---
 
 window.onload = () => {
+    logToScreen("Aplicação carregada v7.3");
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('./sw.js').catch(console.error);
     }
@@ -49,24 +59,36 @@ window.onload = () => {
 };
 
 async function intializeGapiClient() {
-    await gapi.client.init({
-        apiKey: CONFIG.API_KEY,
-        discoveryDocs: [DISCOVERY_DOC],
-    });
-    gapiInited = true;
-    updateUIState();
-    checkToken();
+    logToScreen("A iniciar GAPI Client...");
+    try {
+        await gapi.client.init({
+            apiKey: CONFIG.API_KEY,
+            discoveryDocs: [DISCOVERY_DOC],
+        });
+        gapiInited = true;
+        logToScreen("GAPI Inited ✅", "SUCCESS");
+        updateUIState();
+        checkToken();
+    } catch (e) {
+        logToScreen("Erro GAPI Init: " + JSON.stringify(e), "ERROR");
+    }
 }
 
 function intializeGisClient() {
-    tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CONFIG.CLIENT_ID,
-        scope: SCOPES,
-        callback: '',
-    });
-    gisInited = true;
-    updateUIState();
-    checkToken();
+    logToScreen("A iniciar GIS Client...");
+    try {
+        tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: CONFIG.CLIENT_ID,
+            scope: SCOPES,
+            callback: '',
+        });
+        gisInited = true;
+        logToScreen("GIS Inited ✅", "SUCCESS");
+        updateUIState();
+        checkToken();
+    } catch (e) {
+        logToScreen("Erro GIS Init: " + JSON.stringify(e), "ERROR");
+    }
 }
 
 function updateUIState() {
@@ -185,25 +207,21 @@ async function loadSheets(fileId) {
     const select = document.getElementById('tab-selector');
     if (!select) return;
 
+    logToScreen("A carregar abas para: " + fileId);
+
     if (!gapi.client || !gapi.client.sheets) {
-        console.error("Sheets API client not loaded yet");
-        // Don't show error yet, might still be loading
+        logToScreen("Erro: GAPI Sheets não disponível", "ERROR");
+        select.innerHTML = '<option value="">⚠️ Erro: GAPI Sheets não disponível</option>';
+        select.classList.remove('hidden');
         return;
     }
 
     try {
         const response = await gapi.client.sheets.spreadsheets.get({ spreadsheetId: fileId });
         const sheets = response.result.sheets;
+        logToScreen(`${sheets.length} abas encontradas.`, "SUCCESS");
 
         select.innerHTML = '';
-        // Add a placeholder if multiple sheets exist
-        if (sheets.length > 1) {
-            const placeholder = document.createElement('option');
-            placeholder.disabled = true;
-            placeholder.innerText = "-- Selecionar Aba --";
-            select.appendChild(placeholder);
-        }
-
         sheets.forEach(sheet => {
             const title = sheet.properties.title;
             const option = document.createElement('option');
@@ -220,16 +238,11 @@ async function loadSheets(fileId) {
             select.value = selectedSheetName;
         }
 
-        if (!sheets.some(s => s.properties.title === selectedSheetName)) {
-            selectedSheetName = sheets[0].properties.title;
-            localStorage.setItem('faturaScan_sheetName', selectedSheetName);
-            select.value = selectedSheetName;
-        }
         isSheetsLoadedForCurrentFile = true;
         updateUIState();
     } catch (err) {
         isSheetsLoadedForCurrentFile = false;
-        console.error("SHEET_ERROR:", err);
+        logToScreen("FALHA AO LER PLANILHA: " + JSON.stringify(err), "ERROR");
 
         let msg = "Erro desconhecido";
         let status = "N/A";
@@ -242,14 +255,11 @@ async function loadSheets(fileId) {
             status = err.status || "Error";
         }
 
-        // Mostrar detalhe no dropdown
         select.innerHTML = `<option value="">⚠️ [${status}] ${msg}</option>`;
         select.classList.remove('hidden');
 
-        // Alert simples
-        alert("FALHA NA GOOGLE:\nStatus: " + status + "\nMensagem: " + msg);
-
         if (status == 401) {
+            logToScreen("Sessão expirada. A fechar...", "ERROR");
             handleSignout();
         }
     }
@@ -469,5 +479,5 @@ function cancelForm() {
 
 // --- Debug ---
 window.debugModels = async function () {
-    alert("OCR Local Ativo (v7.2). AI Desativada. Cache Reset.");
+    alert("OCR Local Ativo (v7.3). AI Desativada. Debug Log.");
 };

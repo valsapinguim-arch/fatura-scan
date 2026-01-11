@@ -1,8 +1,8 @@
-const CACHE_NAME = 'invoice-scanner-v20-hard-reset';
+const CACHE_NAME = 'invoice-scanner-v21-debug';
 const ASSETS = [
     './',
     './index.html',
-    './app_v72.js',
+    './app_v73.js',
     './manifest.json',
     'https://cdn.tailwindcss.com',
     'https://unpkg.com/lucide@latest',
