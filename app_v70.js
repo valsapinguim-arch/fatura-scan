@@ -228,16 +228,17 @@ async function loadSheets(fileId) {
         updateUIState();
     } catch (err) {
         isSheetsLoadedForCurrentFile = false;
-        console.error("Erro ao carregar abas:", err);
+        console.error("DEBUG ERR:", err);
+
+        // MOSTRAR ERRO COMPLETO PARA DEBUG
+        alert("INFO DE DEPURAÇÃO (Google API):\n" + JSON.stringify(err, null, 2));
+
         const errorMsg = err.result?.error?.message || err.message || "Erro desconhecido";
         select.innerHTML = `<option value="">⚠️ Erro: ${errorMsg}</option>`;
         select.classList.remove('hidden');
 
         if (err.status === 401 || (err.result && err.result.error && err.result.error.code === 401)) {
-            alert("Sessão expirada. Por favor, conecte novamente.");
             handleSignout();
-        } else if (err.status === 403 || err.status === 404) {
-            alert(`Erro de acesso (${err.status}): Verifique se ainda tem acesso a esta planilha.`);
         }
     }
 }
@@ -456,5 +457,5 @@ function cancelForm() {
 
 // --- Debug ---
 window.debugModels = async function () {
-    alert("OCR Local Ativo (v6.8). AI Desativada. Sem limites de uso.");
+    alert("OCR Local Ativo (v7.0). AI Desativada. Cache Reset.");
 };
