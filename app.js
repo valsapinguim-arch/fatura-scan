@@ -298,7 +298,7 @@ async function analyzeWithGemini(base64Image) {
     loadText.innerText = "A inteligência artificial a analisar...";
 
     // Switching to 2.0 Flash as 1.5 seems unavailable for this key/region
-    const model = 'gemini-1.5-flash-latest';
+    const model = 'gemini-2.0-flash';
 
     try {
         const base64Data = base64Image.split(',')[1];
