@@ -15,8 +15,6 @@ const CONFIG = {
     // Google Drive/Sheets Keys
     API_KEY: 'AIzaSyD5yY3UDK7tHYExgW0JKs2UEx3Y5Yeum4o',
     CLIENT_ID: '1023385440722-8i7vd1vlvfa8bniddojojlgadtsnrtod.apps.googleusercontent.com',
-    APP_ID: '1023385440722',
-
     APP_ID: '1023385440722'
 };
 
@@ -95,6 +93,8 @@ function updateUIState() {
 }
 
 function checkToken() {
+    if (!gapiInited || !gisInited) return;
+
     const btn = document.getElementById('auth-btn');
     const pBtn = document.getElementById('picker-btn');
     const tabSelector = document.getElementById('tab-selector');
@@ -223,11 +223,15 @@ async function loadSheets(fileId) {
     } catch (err) {
         isSheetsLoadedForCurrentFile = false;
         console.error("Erro ao carregar abas:", err);
-        select.innerHTML = '<option value="">⚠️ Erro ao carregar abas</option>';
+        const errorMsg = err.result?.error?.message || err.message || "Erro desconhecido";
+        select.innerHTML = `<option value="">⚠️ Erro: ${errorMsg}</option>`;
         select.classList.remove('hidden');
-        if (err.status === 401) {
+
+        if (err.status === 401 || (err.result && err.result.error && err.result.error.code === 401)) {
             alert("Sessão expirada. Por favor, conecte novamente.");
             handleSignout();
+        } else if (err.status === 403 || err.status === 404) {
+            alert(`Erro de acesso (${err.status}): Verifique se ainda tem acesso a esta planilha.`);
         }
     }
 }
@@ -435,5 +439,5 @@ function cancelForm() {
 
 // --- Debug ---
 window.debugModels = async function () {
-    alert("OCR Local Ativo (v6.6). AI Desativada. Sem limites de uso.");
+    alert("OCR Local Ativo (v6.7). AI Desativada. Sem limites de uso.");
 };
