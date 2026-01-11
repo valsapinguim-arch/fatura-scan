@@ -295,16 +295,6 @@ function capturePhoto() {
 // --- GEMINI AI INTEGRATION (Simplified) ---
 
 async function analyzeWithGemini(base64Image) {
-    if (!CONFIG.GEMINI_KEY) {
-        const key = prompt("⚠️ Chave Gemini não encontrada!\n\nPor favor, cole sua API Key aqui (ela ficará salva apenas no seu telemóvel):");
-        if (key) {
-            localStorage.setItem('faturaScan_geminiKey', key);
-            CONFIG.GEMINI_KEY = key;
-        } else {
-            return;
-        }
-    }
-
     ocrLoading.classList.remove('hidden');
     const loadText = ocrLoading.querySelector('p');
     loadText.innerText = "A inteligência artificial a analisar...";
