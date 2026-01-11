@@ -1,8 +1,8 @@
-const CACHE_NAME = 'invoice-scanner-v15-ocr';
+const CACHE_NAME = 'invoice-scanner-v16-ocr';
 const ASSETS = [
     './',
     './index.html',
-    './app_final.js',
+    './app_v69.js',
     './manifest.json',
     'https://cdn.tailwindcss.com',
     'https://unpkg.com/lucide@latest',
