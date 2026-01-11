@@ -1,3 +1,4 @@
+alert("🚀 Scanner v7.2: Se vir isto, a aplicação ATUALIZOU com sucesso!");
 
 // DOM Elements
 const mainContainer = document.getElementById('main-container');
@@ -468,5 +469,5 @@ function cancelForm() {
 
 // --- Debug ---
 window.debugModels = async function () {
-    alert("OCR Local Ativo (v7.0). AI Desativada. Cache Reset.");
+    alert("OCR Local Ativo (v7.2). AI Desativada. Cache Reset.");
 };

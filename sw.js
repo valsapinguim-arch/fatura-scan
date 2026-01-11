@@ -1,8 +1,8 @@
-const CACHE_NAME = 'invoice-scanner-v18-ocr';
+const CACHE_NAME = 'invoice-scanner-v20-hard-reset';
 const ASSETS = [
     './',
     './index.html',
-    './app_v71.js',
+    './app_v72.js',
     './manifest.json',
     'https://cdn.tailwindcss.com',
     'https://unpkg.com/lucide@latest',
@@ -17,11 +17,19 @@ self.addEventListener('install', (e) => {
 });
 
 self.addEventListener('activate', (e) => {
-    e.waitUntil(clients.claim());
+    e.waitUntil(
+        caches.keys().then((keys) => {
+            return Promise.all(
+                keys.filter((key) => key !== CACHE_NAME)
+                    .map((key) => caches.delete(key))
+            );
+        }).then(() => clients.claim())
+    );
 });
 
 self.addEventListener('fetch', (e) => {
+    // Strategy: Network First, falling back to cache
     e.respondWith(
-        caches.match(e.request).then((response) => response || fetch(e.request))
+        fetch(e.request).catch(() => caches.match(e.request))
     );
 });
