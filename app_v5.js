@@ -18,7 +18,7 @@ const CONFIG = {
     APP_ID: '1023385440722',
 
     // Google Gemini AI Key
-    GEMINI_KEY: 'AIzaSyDrfSRi_A9dj_JGHwQwC_vyxiFhVyLljvA' // <--- SUBSTITUIR AQUI
+    GEMINI_KEY: 'AIzaSyAjmyIM4Eq8J5oeWT-it38945K3wEW0hrA' // <--- NOVA CHAVE ATUALIZADA
 };
 
 // Scopes
