@@ -1,4 +1,4 @@
-const CACHE_NAME = 'invoice-scanner-v14-ocr';
+const CACHE_NAME = 'invoice-scanner-v15-ocr';
 const ASSETS = [
     './',
     './index.html',

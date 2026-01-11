@@ -184,6 +184,12 @@ async function loadSheets(fileId) {
     const select = document.getElementById('tab-selector');
     if (!select) return;
 
+    if (!gapi.client || !gapi.client.sheets) {
+        console.error("Sheets API client not loaded yet");
+        // Don't show error yet, might still be loading
+        return;
+    }
+
     try {
         const response = await gapi.client.sheets.spreadsheets.get({ spreadsheetId: fileId });
         const sheets = response.result.sheets;
@@ -233,6 +239,17 @@ async function loadSheets(fileId) {
         } else if (err.status === 403 || err.status === 404) {
             alert(`Erro de acesso (${err.status}): Verifique se ainda tem acesso a esta planilha.`);
         }
+    }
+}
+
+function clearAppData() {
+    if (confirm("Isto irá limpar a configuração da planilha atual. Continuar?")) {
+        localStorage.removeItem('faturaScan_sheetId');
+        localStorage.removeItem('faturaScan_sheetName');
+        selectedSpreadsheetId = null;
+        selectedSheetName = 'Sheet1';
+        isSheetsLoadedForCurrentFile = false;
+        location.reload();
     }
 }
 
@@ -439,5 +456,5 @@ function cancelForm() {
 
 // --- Debug ---
 window.debugModels = async function () {
-    alert("OCR Local Ativo (v6.7). AI Desativada. Sem limites de uso.");
+    alert("OCR Local Ativo (v6.8). AI Desativada. Sem limites de uso.");
 };
