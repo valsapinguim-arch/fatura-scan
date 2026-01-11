@@ -17,15 +17,7 @@ const CONFIG = {
     CLIENT_ID: '1023385440722-8i7vd1vlvfa8bniddojojlgadtsnrtod.apps.googleusercontent.com',
     APP_ID: '1023385440722',
 
-    // Google Gemini AI Key (Obfuscated to prevent automated leaks)
-    GEMINI_KEY: (function () {
-        const k = localStorage.getItem('faturaScan_geminiKey');
-        if (k) return k;
-        // Fallback obfuscated key
-        const p1 = 'AIzaSyCYkNRC7aOB_';
-        const p2 = 'hGeFN3aFTrIlRAD8owNlkY';
-        return p1 + p2;
-    })()
+    APP_ID: '1023385440722'
 };
 
 // Scopes
@@ -289,93 +281,79 @@ function capturePhoto() {
     formView.classList.remove('hidden');
     emptyState.classList.add('hidden');
 
-    analyzeWithGemini(dataUrl);
+    analyzeWithOCR(dataUrl);
 }
 
-// --- GEMINI AI INTEGRATION (Simplified) ---
+// --- LOCAL OCR INTEGRATION (No AI) ---
 
-async function analyzeWithGemini(base64Image) {
+async function analyzeWithOCR(base64Image) {
     ocrLoading.classList.remove('hidden');
     const loadText = ocrLoading.querySelector('p');
-    loadText.innerText = "A inteligência artificial a analisar...";
-
-    // Switching to 2.0 Flash as 1.5 seems unavailable for this key/region
-    const model = 'gemini-2.0-flash';
+    loadText.innerText = "A inicializar OCR local...";
 
     try {
-        const base64Data = base64Image.split(',')[1];
-        loadText.innerText = `A contactar Google (${model})...`;
+        // Initialize Tesseract worker
+        const worker = await Tesseract.createWorker('por'); // Using Portuguese
 
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${CONFIG.GEMINI_KEY}`;
+        loadText.innerText = "A ler imagem (Processamento local)...";
+        const { data: { text } } = await worker.recognize(base64Image);
+        console.log("OCR Raw Text:", text);
 
-        const prompt = `
-            Analise esta fatura/recibo e extraia os seguintes dados em formato JSON estrito (sem markdown):
-            {
-                "date": "YYYY-MM-DD" (data da fatura, formato ISO. Se não encontrar, use hoje),
-                "amount": 0.00 (valor total numérico, use ponto para decimais),
-                "description": "Texto curto descrevendo o comerciante (ex: Restaurante X, Supermercado Y)"
+        loadText.innerText = "A extrair dados...";
+
+        // --- 1. Extract Date ---
+        // Regex for DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD
+        const dateRegex = /(\d{2}[\/\-]\d{2}[\/\-]\d{4})|(\d{4}[\/\-]\d{2}[\/\-]\d{2})/;
+        const dateMatch = text.match(dateRegex);
+        if (dateMatch) {
+            let foundDate = dateMatch[0].replace(/\//g, '-');
+            // If DD-MM-YYYY, convert to YYYY-MM-DD for the input type="date"
+            if (foundDate.indexOf('-') === 2) {
+                const parts = foundDate.split('-');
+                foundDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
             }
-        `;
-
-        const requestBody = {
-            contents: [{
-                parts: [
-                    { text: prompt },
-                    { inline_data: { mime_type: "image/jpeg", data: base64Data } }
-                ]
-            }],
-            safetySettings: [
-                { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-                { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-                { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-                { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-            ]
-        };
-
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody)
-        });
-
-        const data = await response.json();
-
-        if (data.error) {
-            throw new Error(data.error.message || "Erro API");
-        }
-
-        if (data.candidates && data.candidates[0].content) {
-            let rawText = data.candidates[0].content.parts[0].text;
-            console.log("Raw AI:", rawText);
-
-            // Robust JSON extraction
-            const firstBrace = rawText.indexOf('{');
-            const lastBrace = rawText.lastIndexOf('}');
-
-            if (firstBrace >= 0 && lastBrace > firstBrace) {
-                const jsonStr = rawText.substring(firstBrace, lastBrace + 1);
-                const result = JSON.parse(jsonStr);
-
-                if (result.date) document.getElementById('date').value = result.date;
-                if (result.amount) document.getElementById('amount').value = result.amount;
-                if (result.description) document.getElementById('description').value = result.description;
-
-                submitBtn.focus();
-            } else {
-                alert("Sucesso, mas JSON inválido: " + rawText);
-            }
+            document.getElementById('date').value = foundDate;
         } else {
-            alert("AI recusou processar. Tente outra foto.");
+            // Default to today
+            document.getElementById('date').valueAsDate = new Date();
         }
+
+        // --- 2. Extract Total Amount ---
+        const lines = text.split('\n');
+        let foundAmount = "";
+
+        const totalKeywords = ['TOTAL', 'EUR', '€', 'VALOR', 'LIQUIDO', 'PAGAR', 'MONTANTE'];
+
+        for (let line of lines) {
+            const upperLine = line.toUpperCase();
+            if (totalKeywords.some(key => upperLine.includes(key))) {
+                // Matches numbers like 1.234,56 or 1234.56 or 1234,56
+                const priceMatch = line.match(/\d+[\.,]\s?\d{2}/g);
+                if (priceMatch) {
+                    let priceStr = priceMatch[priceMatch.length - 1];
+                    priceStr = priceStr.replace(/\s/g, '').replace(',', '.');
+                    foundAmount = priceStr;
+                    break;
+                }
+            }
+        }
+
+        if (foundAmount) {
+            document.getElementById('amount').value = foundAmount;
+        }
+
+        // --- 3. Description ---
+        const firstLine = lines.find(l => l.trim().length > 3);
+        if (firstLine) {
+            document.getElementById('description').value = firstLine.trim().substring(0, 30);
+        }
+
+        await worker.terminate();
+        submitBtn.focus();
 
     } catch (err) {
-        console.error("AI Error:", err);
-        // User friendly error for Quota
-        if (err.message && (err.message.includes('quota') || err.message.includes('429'))) {
-            alert(`⚠️ ERRO DE LIMITES (DEBUG)\n\nModelo: ${model}\nErro: ${err.message}\n\nDetalhe: A chave pode ter esgotado o plano gratuito.`);
-        } else {
-            alert("Erro IA: " + err.message);
-        }
+        console.error("OCR Error:", err);
+        alert("Erro no processamento local: " + err.message);
     } finally {
         ocrLoading.classList.add('hidden');
         loadText.innerText = "A analisar texto...";
@@ -439,19 +417,5 @@ function cancelForm() {
 
 // --- Debug ---
 window.debugModels = async function () {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${CONFIG.GEMINI_KEY}`;
-    try {
-        alert("A consultar modelos...");
-        const resp = await fetch(url);
-        const data = await resp.json();
-        if (data.models) {
-            const names = data.models.map(m => m.name.replace('models/', '')).join('\n');
-            alert("Modelos Disponíveis:\n" + names);
-            console.log(data.models);
-        } else {
-            alert("Erro API: " + JSON.stringify(data));
-        }
-    } catch (e) {
-        alert("Erro Rede: " + e);
-    }
+    alert("OCR Local Ativo (v6.0). AI Desativada.");
 };
