@@ -34,6 +34,7 @@ let selectedSheetName = localStorage.getItem('faturaScan_sheetName') || 'Sheet1'
 
 let mediaStream = null;
 let currentFacingMode = 'environment';
+let isSheetsLoadedForCurrentFile = false;
 
 // --- Initialization ---
 
@@ -104,14 +105,15 @@ function checkToken() {
         btn.innerHTML = `<i data-lucide="log-out" class="w-5 h-5"></i><span>Sair da Conta</span>`;
         btn.onclick = handleSignout;
         pBtn.classList.remove('hidden');
-        if (selectedSpreadsheetId) {
+        if (selectedSpreadsheetId && !isSheetsLoadedForCurrentFile) {
             loadSheets(selectedSpreadsheetId);
-        } else {
+        } else if (!selectedSpreadsheetId) {
             tabSelector.classList.add('hidden');
         }
     } else {
         pBtn.classList.add('hidden');
         tabSelector.classList.add('hidden');
+        isSheetsLoadedForCurrentFile = false;
     }
 }
 
@@ -143,6 +145,7 @@ function handleSignout() {
         btn.onclick = handleAuthClick;
         document.getElementById('picker-btn').classList.add('hidden');
         document.getElementById('tab-selector').classList.add('hidden');
+        isSheetsLoadedForCurrentFile = false;
         updateUIState();
     }
 }
@@ -205,15 +208,19 @@ async function loadSheets(fileId) {
         select.classList.remove('hidden');
         document.getElementById('picker-btn').classList.remove('hidden');
 
-        select.value = selectedSheetName;
+        if (selectedSheetName) {
+            select.value = selectedSheetName;
+        }
 
         if (!sheets.some(s => s.properties.title === selectedSheetName)) {
             selectedSheetName = sheets[0].properties.title;
             localStorage.setItem('faturaScan_sheetName', selectedSheetName);
             select.value = selectedSheetName;
         }
+        isSheetsLoadedForCurrentFile = true;
         updateUIState();
     } catch (err) {
+        isSheetsLoadedForCurrentFile = false;
         console.error("Erro ao carregar abas:", err);
         select.innerHTML = '<option value="">⚠️ Erro ao carregar abas</option>';
         select.classList.remove('hidden');
