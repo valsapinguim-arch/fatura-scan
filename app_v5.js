@@ -18,7 +18,7 @@ const CONFIG = {
     APP_ID: '1023385440722',
 
     // Google Gemini AI Key
-    GEMINI_KEY: 'AIzaSyAjmyIM4Eq8J5oeWT-it38945K3wEW0hrA' // <--- NOVA CHAVE ATUALIZADA
+    GEMINI_KEY: localStorage.getItem('faturaScan_geminiKey') || ''
 };
 
 // Scopes
@@ -288,9 +288,14 @@ function capturePhoto() {
 // --- GEMINI AI INTEGRATION (Simplified) ---
 
 async function analyzeWithGemini(base64Image) {
-    if (CONFIG.GEMINI_KEY.includes('YOUR_GEMINI')) {
-        alert("⚠️ FALTA A CHAVE GEMINI!\n\nConfigure a GEMINI_KEY no app.js.");
-        return;
+    if (!CONFIG.GEMINI_KEY) {
+        const key = prompt("⚠️ Chave Gemini não encontrada!\n\nPor favor, cole sua API Key aqui (ela ficará salva apenas no seu telemóvel):");
+        if (key) {
+            localStorage.setItem('faturaScan_geminiKey', key);
+            CONFIG.GEMINI_KEY = key;
+        } else {
+            return;
+        }
     }
 
     ocrLoading.classList.remove('hidden');
